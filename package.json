@@ -13,10 +13,6 @@
 		"./server": {
 			"types": "./dist/server.d.ts",
 			"import": "./dist/server.js"
-		},
-		"./webhooks": {
-			"types": "./dist/webhooks.d.ts",
-			"import": "./dist/webhooks.js"
 		}
 	},
 	"files": [

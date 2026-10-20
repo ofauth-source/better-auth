@@ -1,5 +1,8 @@
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth"
 import { origin } from "./origin"
+import { ofauthWebhookEndpoint, type OFAuthWebhookOptions } from "./webhooks"
+
+export type { OFAuthWebhookAccount, OFAuthWebhookHandlers, OFAuthWebhookOptions } from "./webhooks"
 
 export type OFAuthOptions = {
 	clientId: string
@@ -15,10 +18,12 @@ export type OFAuthOptions = {
 	disableSignUp?: boolean
 	/** Store authorization-to-person metadata for verified webhook routing. Contains no tokens. */
 	onAuthorization?: (authorization: { authorizationId: string; ofauthAccountId: string }) => void | Promise<void>
+	/** Receive signed webhooks at /api/auth/ofauth/webhooks. */
+	webhooks?: OFAuthWebhookOptions
 }
 
 /** Use inside genericOAuth({ config: [ofauthProvider(options), ...] }). */
-export function ofauthProvider(options: OFAuthOptions): GenericOAuthConfig<"ofauth"> {
+export function ofauthProvider(options: Omit<OFAuthOptions, "webhooks">): GenericOAuthConfig<"ofauth"> {
 	if (!options.clientId.trim() || !options.clientSecret.trim()) throw new Error("OFAuth client credentials are required")
 	if (!/^ofext_(test|live)_[A-Za-z0-9_-]{32}$/.test(options.clientId)) throw new Error("OFAuth sign-in requires Test or Live client credentials")
 	const apiURL = origin(options.apiURL ?? "https://api.ofauth.com")
@@ -64,5 +69,11 @@ export function ofauthProvider(options: OFAuthOptions): GenericOAuthConfig<"ofau
 }
 
 /** Registers OFAuth for authClient.signIn.social and authClient.linkSocial. */
-export const ofauth = (options: OFAuthOptions): ReturnType<typeof genericOAuth<"ofauth">> =>
-	genericOAuth({ config: [ofauthProvider(options)] })
+export const ofauth = (options: OFAuthOptions): Omit<ReturnType<typeof genericOAuth<"ofauth">>, "id"> & {
+	id: "ofauth"
+	endpoints: { ofauthWebhooks: ReturnType<typeof ofauthWebhookEndpoint> } | {}
+} => ({
+	...genericOAuth({ config: [ofauthProvider(options)] }),
+	id: "ofauth" as const,
+	endpoints: options.webhooks ? { ofauthWebhooks: ofauthWebhookEndpoint(options.webhooks) } : {},
+})
