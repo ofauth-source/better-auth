@@ -4,8 +4,6 @@ import { origin } from "./origin"
 export type OFAuthOptions = {
 	clientId: string
 	clientSecret: string
-	/** Required for Live; must match a purpose approved for your integration. */
-	purpose?: string
 	/** Additional creator permissions. Sign-in always requests identity:read. */
 	scopes?: string[]
 	/** Request refresh tokens. Defaults to true. */
@@ -22,10 +20,7 @@ export type OFAuthOptions = {
 /** Use inside genericOAuth({ config: [ofauthProvider(options), ...] }). */
 export function ofauthProvider(options: OFAuthOptions): GenericOAuthConfig<"ofauth"> {
 	if (!options.clientId.trim() || !options.clientSecret.trim()) throw new Error("OFAuth client credentials are required")
-	const environment = /^ofext_(test|live)_[A-Za-z0-9_-]{32}$/.exec(options.clientId)?.[1]
-	if (!environment) throw new Error("OFAuth sign-in requires Test or Live client credentials")
-	if (environment === "live" && !options.purpose?.trim()) throw new Error("OFAuth Live requires an approved purpose")
-	if (environment !== "live" && options.purpose !== undefined) throw new Error("OFAuth purpose is only supported in Live")
+	if (!/^ofext_(test|live)_[A-Za-z0-9_-]{32}$/.test(options.clientId)) throw new Error("OFAuth sign-in requires Test or Live client credentials")
 	const apiURL = origin(options.apiURL ?? "https://api.ofauth.com")
 	const authURL = origin(options.authURL ?? "https://auth.ofauth.com")
 	const scopes = [...new Set(["identity:read", ...(options.offlineAccess === false ? [] : ["offline_access"]), ...(options.scopes ?? [])])]
@@ -39,7 +34,6 @@ export function ofauthProvider(options: OFAuthOptions): GenericOAuthConfig<"ofau
 		tokenEndpointAuth: { method: "client_secret_basic" },
 		pkce: true,
 		scopes,
-		authorizationUrlParams: environment === "live" ? { purpose: options.purpose! } : undefined,
 		disableSignUp: options.disableSignUp,
 		getUserInfo: async (tokens) => {
 			if (!tokens.accessToken) return null

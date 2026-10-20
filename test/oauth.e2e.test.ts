@@ -16,6 +16,7 @@ import { createTestEvent } from "@ofauth/onlyfans-sdk/testing"
 
 const appOrigin = "http://localhost:3000"
 const clientId = `ofext_test_${"t".repeat(32)}`
+const liveClientId = `ofext_live_${"l".repeat(32)}`
 const clientSecret = "test_secret"
 let issuer: string
 let server: Server
@@ -56,7 +57,7 @@ beforeAll(async () => {
 			const chunks: Buffer[] = []
 			for await (const chunk of request) chunks.push(Buffer.from(chunk))
 			const form = new URLSearchParams(Buffer.concat(chunks).toString())
-			if (request.headers.authorization !== `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}` ||
+			if (![clientId, liveClientId].some((id) => request.headers.authorization === `Basic ${Buffer.from(`${id}:${clientSecret}`).toString("base64")}`) ||
 				form.has("resource")) return json({ error: "invalid_client" }, 401)
 			let subject: string
 			if (form.get("grant_type") === "refresh_token") {
@@ -117,12 +118,12 @@ afterAll(async () => {
 })
 
 const writes: string[] = []
-const createApp = (options: { scopes?: string[]; allowDifferentEmails?: boolean; onAuthorization?: OFAuthOptions["onAuthorization"] } = {}) => betterAuth({
+const createApp = (options: { clientId?: string; scopes?: string[]; allowDifferentEmails?: boolean; onAuthorization?: OFAuthOptions["onAuthorization"] } = {}) => betterAuth({
 	baseURL: appOrigin,
 	secret: "ofauth-integration-test-secret-at-least-32-characters",
 	emailAndPassword: { enabled: true },
 	account: { accountLinking: { enabled: true, allowDifferentEmails: options.allowDifferentEmails } },
-	plugins: [ofauth({ clientId, clientSecret, apiURL: issuer, authURL: issuer, scopes: options.scopes ?? ["profile:read"], onAuthorization: options.onAuthorization })],
+	plugins: [ofauth({ clientId: options.clientId ?? clientId, clientSecret, apiURL: issuer, authURL: issuer, scopes: options.scopes ?? ["profile:read"], onAuthorization: options.onAuthorization })],
 })
 
 function cookieHeader(response: Response): string {
@@ -192,10 +193,10 @@ describe("OFAuth through Better Auth HTTP endpoints", () => {
 		expect(otherAccounts.some((account) => account.providerId === "ofauth")).toBe(false)
 	})
 
-	it("signs in without requesting access to any creator account", async () => {
+	it("signs in with Live credentials without a purpose parameter or creator access", async () => {
 		person = "login-only-person"
 		creators = []
-		const auth = createApp({ scopes: [] })
+		const auth = createApp({ clientId: liveClientId, scopes: [] })
 		const flow = await authorize(auth)
 		expect(new URL(flow.authorizationURL).searchParams.get("scope")?.split(" ")).toEqual(["identity:read", "offline_access"])
 		const response = await complete(auth, flow)
