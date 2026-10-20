@@ -5,13 +5,14 @@
 // Webhook failures: altered or stale signatures, malformed signed envelopes, delivery
 // before account creation, duplicate/out-of-order events, retry after handler failure,
 // wrong provider mapping, and disclosing tokens or deleting the person's app session.
+// Configured routes must preserve raw bodies, respect the auth base path, and stay
+// absent when disabled; malformed JSON must reach signature verification first.
 import { createHash, createHmac } from "node:crypto"
 import { createServer, type Server } from "node:http"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { betterAuth } from "better-auth"
 import { ofauth, type OFAuthOptions } from "../src/index"
 import { createOFAuthAccess } from "../src/server"
-import { createOFAuthWebhookHandler } from "../src/webhooks"
 import { createTestEvent } from "@ofauth/onlyfans-sdk/testing"
 
 const appOrigin = "http://localhost:3000"
@@ -118,12 +119,13 @@ afterAll(async () => {
 })
 
 const writes: string[] = []
-const createApp = (options: { clientId?: string; scopes?: string[]; allowDifferentEmails?: boolean; onAuthorization?: OFAuthOptions["onAuthorization"] } = {}) => betterAuth({
+const createApp = (options: { clientId?: string; scopes?: string[]; allowDifferentEmails?: boolean; onAuthorization?: OFAuthOptions["onAuthorization"]; webhooks?: OFAuthOptions["webhooks"]; basePath?: string } = {}) => betterAuth({
 	baseURL: appOrigin,
+	basePath: options.basePath,
 	secret: "ofauth-integration-test-secret-at-least-32-characters",
 	emailAndPassword: { enabled: true },
 	account: { accountLinking: { enabled: true, allowDifferentEmails: options.allowDifferentEmails } },
-	plugins: [ofauth({ clientId: options.clientId ?? clientId, clientSecret, apiURL: issuer, authURL: issuer, scopes: options.scopes ?? ["profile:read"], onAuthorization: options.onAuthorization })],
+	plugins: [ofauth({ clientId: options.clientId ?? clientId, clientSecret, apiURL: issuer, authURL: issuer, scopes: options.scopes ?? ["profile:read"], onAuthorization: options.onAuthorization, webhooks: options.webhooks })],
 })
 
 function cookieHeader(response: Response): string {
@@ -274,11 +276,6 @@ describe("OFAuth through Better Auth HTTP endpoints", () => {
 	it("verifies signed webhooks, resolves the Better Auth account, and delegates durable processing before acknowledging", async () => {
 		person = "webhook-person"
 		const bindings = new Map<string, string>()
-		const auth = createApp({ onAuthorization: ({ authorizationId, ofauthAccountId }) => { bindings.set(authorizationId, ofauthAccountId) } })
-		const completed = await complete(auth, await authorize(auth))
-		const headers = new Headers({ cookie: cookieHeader(completed) })
-		const [account] = await auth.api.listUserAccounts({ headers })
-		expect(bindings.get("authz_webhook-person")).toBe("webhook-person")
 		const secret = `whsec_${Buffer.from("webhook-test-key-32-bytes-long!!!").toString("base64")}`
 		let lookups = 0
 		let attempts = 0
@@ -286,38 +283,46 @@ describe("OFAuth through Better Auth HTTP endpoints", () => {
 		const applied: Array<{ userId: string; id: string }> = []
 		const seen = new Set<string>()
 		let lastOrder = -1
-		const handler = createOFAuthWebhookHandler({
-			auth, secret,
-			resolveAccount: async (event) => { lookups++; return bindings.get(event.authorizationId) ?? null },
-			// Local stand-in for the app's transaction: production uses durable storage.
-			processEvent: async (event, work) => {
-				if (seen.has(event.eventId) || event.order <= lastOrder) return
-				await work()
-				seen.add(event.eventId)
-				lastOrder = event.order
-			},
-			handlers: {
-				"authorization.revoked": async ({ account: resolved, event }) => {
-					attempts++
-					expect(Object.keys(resolved).sort()).toEqual(["accountId", "id", "providerId", "userId"])
-					expect(event.data.reason).toBe("owner_revoked")
-					if (fail) throw new Error("Temporary app storage failure")
-					applied.push({ userId: resolved.userId, id: resolved.id })
+		const auth = createApp({
+			onAuthorization: ({ authorizationId, ofauthAccountId }) => { bindings.set(authorizationId, ofauthAccountId) },
+			webhooks: { secret,
+				resolveAccount: async (event) => { lookups++; return bindings.get(event.authorizationId) ?? null },
+				// Local stand-in for the app's transaction: production uses durable storage.
+				processEvent: async (event, work) => {
+					if (seen.has(event.eventId) || event.order <= lastOrder) return
+					await work()
+					seen.add(event.eventId)
+					lastOrder = event.order
+				},
+				handlers: {
+					"authorization.revoked": async ({ account: resolved, event }) => {
+						attempts++
+						expect(Object.keys(resolved).sort()).toEqual(["accountId", "id", "providerId", "userId"])
+						expect(event.data.reason).toBe("owner_revoked")
+						if (fail) throw new Error("Temporary app storage failure")
+						applied.push({ userId: resolved.userId, id: resolved.id })
+					},
 				},
 			},
 		})
+		const handler = (request: Request) => auth.handler(request)
+		const completed = await complete(auth, await authorize(auth))
+		const headers = new Headers({ cookie: cookieHeader(completed) })
+		const [account] = await auth.api.listUserAccounts({ headers })
+		expect(bindings.get("authz_webhook-person")).toBe("webhook-person")
 		const event = createTestEvent("authorization.revoked", { authorizationId: "authz_webhook-person", order: 5 })
 		// Independent signer: the verifier comes from the SDK, not this fixture.
 		const signed = (payload: unknown, timestamp = Math.floor(Date.now() / 1000)) => {
 			const body = JSON.stringify(payload)
 			const id = "msg_better_auth_webhook"
 			const signature = createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${id}.${timestamp}.${body}`).digest("base64")
-			return new Request(`${appOrigin}/webhooks/ofauth`, { method: "POST", body, headers: {
+			return new Request(`${appOrigin}/api/auth/ofauth/webhooks`, { method: "POST", body, headers: {
 				"content-type": "application/json", "webhook-id": id, "webhook-timestamp": String(timestamp), "webhook-signature": `v1,${signature}`,
 			} })
 		}
 		const tampered = signed(event)
 		expect((await handler(new Request(tampered.url, { method: "POST", headers: tampered.headers, body: "{}" }))).status).toBe(401)
+		expect((await handler(new Request(tampered.url, { method: "POST", headers: tampered.headers, body: "{" }))).status).toBe(401)
 		expect((await handler(signed(event, Math.floor(Date.now() / 1000) - 600))).status).toBe(401)
 		expect(lookups).toBe(0)
 		expect((await handler(signed({ ...event, order: "invalid" }))).status).toBe(400)
@@ -335,6 +340,12 @@ describe("OFAuth through Better Auth HTTP endpoints", () => {
 		expect(applied).toEqual([{ userId: account.userId, id: account.id }])
 		expect((await auth.api.getSession({ headers }))?.user.id).toBe(account.userId)
 		expect((await auth.api.listUserAccounts({ headers }))[0].id).toBe(account.id)
-		expect((await handler(new Request(`${appOrigin}/webhooks/ofauth`))).status).toBe(405)
+		expect([404, 405]).toContain((await handler(new Request(`${appOrigin}/api/auth/ofauth/webhooks`))).status)
+		expect((await createApp().handler(signed(event))).status).toBe(404)
+		const custom = createApp({ basePath: "/auth", webhooks: {
+			secret, resolveAccount: async () => null, processEvent: async (_event, work) => work(), handlers: {},
+		} })
+		const request = signed(event)
+		expect((await custom.handler(new Request(`${appOrigin}/auth/ofauth/webhooks`, request))).status).toBe(204)
 	})
 })

@@ -72,4 +72,4 @@ const profile = await client.access.profile.get()
 
 ## Handle webhooks
 
-Use the [webhook helper](docs/webhooks.md) to update your app when someone removes access or a creator needs to reconnect.
+Add [`webhooks` to the plugin config](docs/webhooks.md) to handle access changes at `/api/auth/ofauth/webhooks`.
