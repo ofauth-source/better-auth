@@ -1,0 +1,59 @@
+{
+  "issue": "https://github.com/seb-lewis/ofauth-mono/issues/1274",
+  "sourceRepository": "https://github.com/ofauth-source/better-auth",
+  "sourceRevision": "40b6c141178d6ae4d3166da2937f5908bbb8ed25",
+  "baseBranch": "main",
+  "baseRevision": "7dacef28792e58bd5f57a82c729bfc2bc3686b56",
+  "betterAuthVersion": "1.7.12",
+  "node": "22.23.1",
+  "postgresql": "16.13",
+  "pnpm": "11.5.0",
+  "vitest": "4.1.12",
+  "packedArtifactSHA256": "629c3868ff462f072b1d80a11c690f8c5bf1b9c4fd85d7d6d56be39c61065c75",
+  "consumer": "clean project outside checkout; imports packed artifact",
+  "passed": 6,
+  "failed": 1,
+  "skipped": 0,
+  "releaseReady": false,
+  "simulationLimits": [
+    "Mock issuer simulates owner consent and provider state; actual issuer not certified",
+    "No staging provider login, HTTPS callback or delivery certification"
+  ],
+  "scenarios": [
+    {
+      "name": "links an existing different-email user with client_secret_basic, protected tokens and explicit provider account selection",
+      "status": "passed",
+      "failure": null
+    },
+    {
+      "name": "links an existing different-email user with client_secret_post, protected tokens and explicit provider account selection",
+      "status": "passed",
+      "failure": null
+    },
+    {
+      "name": "rejects different-email linking by default and absent profile email without fabricating an identity",
+      "status": "passed",
+      "failure": null
+    },
+    {
+      "name": "rejects tampered state, another session and callback replay without consuming legitimate pending state",
+      "status": "passed",
+      "failure": null
+    },
+    {
+      "name": "refreshes in two independent processes, retries a lost response after a process restart, and rejects revocation",
+      "status": "passed",
+      "failure": null
+    },
+    {
+      "name": "retries the renewable credential after a storage failure without an attempt table",
+      "status": "passed",
+      "failure": null
+    },
+    {
+      "name": "keeps a replacement registration when an old refresh completes after relinking",
+      "status": "failed",
+      "failure": "Native refresh overwrote fresh registration; subsequent renewal returned400 instead of200"
+    }
+  ]
+}
