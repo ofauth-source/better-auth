@@ -22,6 +22,14 @@ The failed case is `keeps a replacement registration when an old refresh complet
 
 The test remains a normal failure. No skip, expected-failure marker, refresh lock, or custom exchange hides the result. Artifacts contain status assertions rather than token values.
 
+## Actual OFAuth route verification
+
+The coordinated monorepo implementation passes five existing public-interface E2E scenarios using `createCoreApiApp`, Better Auth 1.7.3, native Generic OAuth, and a PostgreSQL database created by the complete current migration journal. The preset uses real authorization, consent, token, userinfo, account discovery, credential revocation, and authorization disconnect handlers. The redacted request trace and source hash are in `test/evidence/ofauth-core-better-auth-1.7.3.json`.
+
+The scenarios cover zero-account sign-in, existing-user linking and account theft rejection, independent framework instances refreshing the same stable credential concurrently, retry after an unpersisted committed refresh response, a new framework instance reading ordinary persisted credentials, narrowed issuance, independent credential revocation, complete authorization disconnect, and approved Live identity-only authorization. This run imports the monorepo preset source; the separate packed-consumer runs above validate the published artifact shape. Independent OS processes and a lost socket response are tested against the simulated issuer in those package runs. These are distinct results.
+
+Provider sessions are synthetic. This evidence does not certify staging HTTPS callbacks, actual provider login or delivery, or billing settlement. The registration-change race remains a publication blocker.
+
 ## Framework persistence finding
 
 In the tested packages, `getValidAccessToken` calls `internalAdapter.updateAccount(account.id, updatedData)` after refresh. `updateAccount` passes only the row ID to `updateWithHooks`. The account update hook receives the new partial account and endpoint context. It cannot add an atomic comparison against the original refresh credential or registration version. A custom adapter can execute a conditional update, but the native refresh caller supplies no original token or registration version for that comparison. Reading again in a hook leaves another race between the read and write.
