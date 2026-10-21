@@ -2,6 +2,8 @@ import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/gener
 import { origin } from "./origin"
 import { ofauthAccountProtection } from "./account-updates"
 
+
+
 export { ofauthAccountProtection } from "./account-updates"
 
 export type OFAuthOptions = {
