@@ -1,5 +1,8 @@
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth"
 import { origin } from "./origin"
+import { ofauthAccountProtection } from "./account-updates"
+
+export { ofauthAccountProtection } from "./account-updates"
 
 export type OFAuthOptions = {
 	clientId: string
@@ -36,4 +39,7 @@ export function ofauthProvider(options: OFAuthOptions): GenericOAuthConfig<"ofau
 }
 
 /** Better Auth owns callback validation, token storage, and refresh. */
-export const ofauth = (options: OFAuthOptions): ReturnType<typeof genericOAuth<"ofauth">> => genericOAuth({ config: [ofauthProvider(options)] })
+export const ofauth = (options: OFAuthOptions) => ({
+	...genericOAuth({ config: [ofauthProvider(options)] }),
+	hooks: ofauthAccountProtection().hooks,
+})
