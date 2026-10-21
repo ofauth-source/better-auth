@@ -2,23 +2,21 @@
 	"name": "@ofauth/better-auth",
 	"version": "0.1.0",
 	"description": "OFAuth sign-in and creator account linking for Better Auth",
-	"author": { "name": "OFAuth-org", "url": "https://github.com/OFAuth-org" },
+	"author": {
+		"name": "OFAuth-org",
+		"url": "https://github.com/OFAuth-org"
+	},
 	"type": "module",
 	"sideEffects": false,
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
-		},
-		"./server": {
-			"types": "./dist/server.d.ts",
-			"import": "./dist/server.js"
 		}
 	},
 	"files": [
 		"dist",
-		"README.md",
-		"docs"
+		"README.md"
 	],
 	"publishConfig": {
 		"access": "public"
@@ -30,18 +28,16 @@
 		"prepack": "pnpm build"
 	},
 	"peerDependencies": {
-		"@ofauth/onlyfans-sdk": "^4.0.0",
 		"better-auth": "^1.7.3"
-	},
-	"peerDependenciesMeta": {
-		"@ofauth/onlyfans-sdk": { "optional": true }
 	},
 	"devDependencies": {
 		"@types/node": "^24.5.2",
 		"better-auth": "1.7.3",
 		"tsup": "^8.5.0",
 		"typescript": "^5.9.3",
-		"vitest": "^4.1.0"
+		"vitest": "^4.1.0",
+		"pg": "^8.23.1",
+		"@types/pg": "^8.23.1"
 	},
 	"repository": {
 		"type": "git",
