@@ -1,0 +1,71 @@
+{
+  "sourceRepository": "https://github.com/seb-lewis/ofauth-mono",
+  "sourceRevision": "6bf7c740",
+  "sourceReport": ".audit/1274-evidence/followup-checks.json",
+  "sourceReportSHA256": "5ea949eae88fecf8b10be4b734f04d5bfc4b52447b1609b1e9b972a53cffc229",
+  "provenance": "Extracted from the existing coordinated monorepo follow-up report; this package review did not rerun the actual issuer.",
+  "framework": "better-auth@1.7.3",
+  "scope": "Actual mounted Core + gateway routes; shared real Postgres fixture pool",
+  "passed": 12,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "Better Auth against the mounted Core API Link contract signs in with zero creator grants through Link and refreshes a real token",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract rejects a stale get-access-token after another instance performs relink",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract rejects a stale refresh-token after another instance performs relink",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract rejects a stale account-info after another instance performs relink",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract rejects a stale get-access-token after another instance performs unlink",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract rejects a stale refresh-token after another instance performs unlink",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract rejects a stale account-info after another instance performs unlink",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract requires saved account selection even when Better Auth stores a signed account cookie",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract links an existing app user, changes shared creators without changing login, and prevents account stealing",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract narrows only the new access token and revokes one stable renewable credential",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract revokes one credential independently, then disconnects its authorization",
+      "status": "passed"
+    },
+    {
+      "name": "Better Auth against the mounted Core API Link contract signs in and refreshes under an approved Live purpose without granting a creator account",
+      "status": "passed"
+    }
+  ],
+  "sourceSha256": {
+    "shared/packages/better-auth/src/index.ts": "5e40a8df79fed945c486baea1cbbcee32b4ed6dd86e031cd014126ba879487c4",
+    "shared/packages/better-auth/src/account-updates.ts": "4ca16bf6b3db32805bd7e8ee6e815e66d7c77030d545b6eb30360d237ce7db6a",
+    "v3/user-facing/api/core-api/test/integration/better-auth-link.test.ts": "86456612b728a9e0502316c1a1d89e2ed52e77e35f56fc53472203f196a51743"
+  },
+  "simulationLimits": [
+    "Synthetic provider connections and fixture issuer in separate package tests.",
+    "Core interoperability uses actual mounted HTTP handlers and a shared real Postgres pool; not deployed Hyperdrive or staging evidence.",
+    "Workerd reports handled Better Auth 302 and selected 400 responses as unhandled; the suite explicitly asserts those HTTP responses. Separate Node consumer runs exit zero."
+  ]
+}

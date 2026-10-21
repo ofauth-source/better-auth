@@ -1,23 +1,60 @@
 {
   "issue": "https://github.com/seb-lewis/ofauth-mono/issues/1274",
   "sourceRepository": "https://github.com/ofauth-source/better-auth",
-  "sourceRevision": "40b6c141178d6ae4d3166da2937f5908bbb8ed25",
+  "runtimeSourceRevision": "d54892f77c1d0be36f8bd8e448f6b19f7edcf213",
+  "sourceState": "Runtime unchanged from revision; fixture and README digests identify this review run.",
   "baseBranch": "main",
   "baseRevision": "7dacef28792e58bd5f57a82c729bfc2bc3686b56",
   "betterAuthVersion": "1.7.12",
+  "betterAuthCoreVersion": "1.7.12",
+  "coreContextSharedWithFramework": true,
   "node": "22.23.1",
-  "postgresql": "16.13",
+  "postgresql": "17.10",
+  "database": "ofauth_test_1274_review_better_auth",
   "pnpm": "11.5.0",
   "vitest": "4.1.12",
-  "packedArtifactSHA256": "629c3868ff462f072b1d80a11c690f8c5bf1b9c4fd85d7d6d56be39c61065c75",
-  "consumer": "clean project outside checkout; imports packed artifact",
-  "passed": 6,
-  "failed": 1,
+  "packedArtifactSHA256": "adb3e53303a0b85844e511aeff53b9e2f24c4335b39401cbbbb5eb0eff58c186",
+  "installedEntrypointSHA256": "8bf44f98ac4ec490fc4ed33a7b2547663977b12beeccdeda7c5f4b44dd947826",
+  "installedReadmeMatchesPackedSource": true,
+  "runtimeSourceSHA256": {
+    "src/origin.ts": "8492d78537b4cbd74846619f7ba91f6d2f385636f7f7dcace8edc8c80485ccba",
+    "src/index.ts": "5e40a8df79fed945c486baea1cbbcee32b4ed6dd86e031cd014126ba879487c4",
+    "src/account-updates.ts": "4ca16bf6b3db32805bd7e8ee6e815e66d7c77030d545b6eb30360d237ce7db6a"
+  },
+  "trackedFixtureSHA256": {
+    "oauth.e2e.test.ts": "a4d350499a5edea270cc12f7d89ffc93caa2930e3f9f94d05387a05c07fc218b",
+    "app-instance.mjs": "6ca299f3ded2149c3ea40aa21f4ae72523977af5c86cc0c421cb050a42224358"
+  },
+  "executedFixtureSHA256": {
+    "oauth.e2e.test.ts": "e357b231e2483817573f9e0fb08890b106970ce77a80a45b2432826d76d846c3",
+    "app-instance.mjs": "6ca299f3ded2149c3ea40aa21f4ae72523977af5c86cc0c421cb050a42224358"
+  },
+  "consumer": "Fresh project outside checkout; imports packed artifact. Child processes import ofauthAccountProtection from the installed package.",
+  "consumerDirectory": "/tmp/ofauth-1274-review-final-ba-1.7.12",
+  "command": "pnpm install --ignore-scripts && pnpm check && pnpm test",
+  "passed": 7,
+  "failed": 0,
   "skipped": 0,
   "releaseReady": false,
+  "processAssertions": [
+    "Two independent protected Node processes renew the same saved registration concurrently.",
+    "Both renewals succeed without changing the stored encrypted stable refresh credential.",
+    "A lost response can be retried after an independent process restart.",
+    "Credential revocation denies resources and renewal while preserving the application session."
+  ],
+  "registrationChangeRoutes": [
+    "getAccessToken",
+    "refreshToken",
+    "accountInfo"
+  ],
+  "databaseCleanup": {
+    "remainingFixtureSchemas": 0,
+    "scope": "Only the run-owned schema is dropped. Matrix runs are sequential on the dedicated database."
+  },
   "simulationLimits": [
-    "Mock issuer simulates owner consent and provider state; actual issuer not certified",
-    "No staging provider login, HTTPS callback or delivery certification"
+    "The mock issuer simulates consent and provider state. This run does not certify the actual OFAuth issuer.",
+    "Actual mounted Core evidence is a separate existing report in ofauth-core-followup.json.",
+    "No staging provider login, HTTPS callback, delivery, billing, or public package-installation certification."
   ],
   "scenarios": [
     {
@@ -51,9 +88,9 @@
       "failure": null
     },
     {
-      "name": "keeps a replacement registration when an old refresh completes after relinking",
-      "status": "failed",
-      "failure": "Native refresh overwrote fresh registration; subsequent renewal returned400 instead of200"
+      "name": "keeps a replacement registration after relinking during each native token route",
+      "status": "passed",
+      "failure": null
     }
   ]
 }

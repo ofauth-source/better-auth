@@ -2,17 +2,18 @@
 
 A small configuration preset for Better Auth's [Generic OAuth plugin](https://better-auth.com/docs/plugins/generic-oauth). Better Auth owns callback validation, token storage, and refresh. Keep your client secret and access tokens on your backend.
 
-This greenfield V3 change is **not ready to publish**. The registration-change race in `test/oauth.e2e.test.ts` is a release gate: a refresh that started before relinking must not overwrite the new registration. See `test/FAILURES.md`. Local fixture tests do not certify the OFAuth issuer or staging provider callbacks.
+The preset protects native token persistence when a connection changes during refresh. Packed consumers pass the registration-change checks on Better Auth 1.7.3 and 1.7.12. Local fixture tests do not certify the OFAuth issuer or staging provider callbacks. See `test/RESULTS.md` for the separate evidence and release limits.
 
 ## Configure signed-in account linking
 
 Register your exact callback, such as `https://your-app.example/api/auth/callback/ofauth`, in OFAuth. Match Better Auth's `baseURL`, `basePath`, and trusted origins. Each Sandbox, Test, or Live client uses the same OAuth shape; its client ID selects the environment.
 
-You can configure the stock plugin directly without this package:
+Install matching versions of `better-auth` and `@better-auth/core`. Configure native Generic OAuth with the account-protection plugin:
 
 ```ts
 import { betterAuth } from "better-auth"
 import { genericOAuth } from "better-auth/plugins/generic-oauth"
+import { ofauthAccountProtection } from "@ofauth/better-auth"
 
 export const auth = betterAuth({
   database, // Your ordinary Better Auth database adapter.
@@ -34,13 +35,13 @@ export const auth = betterAuth({
     tokenEndpointAuth: { method: "client_secret_basic" },
     scopes: ["identity:read", "profile:read"],
     pkce: true,
-  }] })],
+  }] }), ofauthAccountProtection()],
 })
 ```
 
 `allowDifferentEmails: true` is a deliberate policy for linking from an existing signed-in session. Omit it if the OFAuth profile must match the application's email. Preserve your other authentication and account-linking policies. Do not mark OFAuth as a blanket trusted provider. Better Auth also checks provider email verification; the harness verifies rejection of an unverified or absent email. OFAuth must never invent an email or verified status. Guest API delegation remains available through raw OAuth without a profile-based adapter.
 
-The equivalent preset is `plugins: [ofauth({ clientId, clientSecret, scopes: ["profile:read"] })]`, imported from `@ofauth/better-auth`. `ofauthProvider(options)` returns the same standard configuration for an existing Generic OAuth plugin. Options include `apiURL`, `authURL`, `disableSignUp`, and `tokenEndpointAuthMethod: "client_secret_basic" | "client_secret_post"`. The preset always requests `identity:read` and PKCE. Explicit endpoints are the supported configuration; OIDC and discovery are not claimed.
+The equivalent preset is `plugins: [ofauth({ clientId, clientSecret, scopes: ["profile:read"] })]`, imported from `@ofauth/better-auth`. `ofauthProvider(options)` returns the same standard configuration for an existing Generic OAuth plugin; add `ofauthAccountProtection()` alongside that plugin. The preset already includes the protection. It keeps Better Auth as the credential owner and makes native token updates conditional on the saved connection. See [Protect a saved connection](./ACCOUNT-UPDATES.md). Options include `apiURL`, `authURL`, `disableSignUp`, and `tokenEndpointAuthMethod: "client_secret_basic" | "client_secret_post"`. The preset always requests `identity:read` and PKCE. Explicit endpoints are the supported configuration; OIDC and discovery are not claimed.
 
 From the application's signed-in browser session:
 
@@ -55,7 +56,7 @@ Better Auth binds state to that initiating session and persists the tokens on ca
 
 ## Obtain a token and choose a provider account
 
-Use Better Auth's supported server token API with the current application's session headers and a Better Auth account row belonging to that user:
+Use Better Auth's supported server token API with the current application's session headers and a Better Auth account row belonging to that user. Pass its database row ID as `accountId`; the provider identity in `account.accountId` is different. OFAuth token routes reject signed-cookie selection:
 
 ```ts
 const accounts = await auth.api.listUserAccounts({ headers: request.headers })
@@ -105,11 +106,11 @@ To end the whole authorization, call `DELETE /v3/authorization` with the current
 ```sh
 pnpm install --frozen-lockfile --ignore-scripts
 pnpm check
-POSTGRES_URL=postgres://ofauth:ofauth@localhost:61700/ofauth pnpm test
 pnpm build
+POSTGRES_URL="$YOUR_ISOLATED_TEST_DATABASE_URL" pnpm test
 pnpm pack
 ```
 
 The harness runs real Better Auth and PostgreSQL against a simulated OAuth issuer. It exercises both standard secret methods, signed-in linking policy, protected persistence, session/state isolation, simultaneous refresh, lost-response and storage-failure recovery, explicit account selection, and revocation. It deliberately fails if a stale refresh overwrites a new registration. `test-results/oauth.e2e.json` is the repeatable redacted result artifact. It omits OAuth secrets from assertions and disables framework logging.
 
-Tested versions: Better Auth 1.7.3 (workspace pin) and 1.7.12 (current npm version at verification). Clean consumers of the packed archive pass six scenarios and fail the registration-change race on both versions. Install the packed archive in a clean consumer before release. The coordinated monorepo passes five actual OFAuth route scenarios with Better Auth 1.7.3; see `test/RESULTS.md` and the redacted evidence. Staging HTTPS callbacks, real provider login, and package publication remain separate release checks. Do not publish while the registration race is unresolved.
+Tested versions: Better Auth 1.7.3 and 1.7.12, each with the matching `@better-auth/core` version. Fresh consumers of the packed archive pass all seven scenarios on both versions. Two independent Node processes use the installed protection plugin. The registration-change scenario exercises all three native token routes. Actual mounted OFAuth route evidence is recorded separately in `test/RESULTS.md`; those runs use synthetic provider connections. Staging HTTPS callbacks, real provider login, delivery, and public package installation remain release checks. No package was published.
