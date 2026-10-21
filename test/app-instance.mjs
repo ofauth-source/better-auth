@@ -3,6 +3,7 @@
 import { createServer } from "node:http"
 import { betterAuth } from "better-auth"
 import { genericOAuth } from "better-auth/plugins/generic-oauth"
+import { ofauthAccountProtection } from "@ofauth/better-auth"
 import { Pool } from "pg"
 
 const schema = process.env.OFAUTH_TEST_SCHEMA
@@ -27,7 +28,7 @@ const auth = betterAuth({
   userInfoUrl: `${apiURL}/v3/link/userinfo`,
   tokenEndpointAuth: { method: "client_secret_basic" },
   scopes: ["identity:read", "profile:read"], pkce: true,
- }] })],
+ }] }), ofauthAccountProtection()],
 })
 const server = createServer(async (request, response) => {
  try {

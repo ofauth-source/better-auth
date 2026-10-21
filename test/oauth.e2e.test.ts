@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { betterAuth } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { Pool } from "pg"
-import { ofauth, ofauthProvider } from "../src/index"
+import { ofauth, ofauthAccountProtection, ofauthProvider } from "../src/index"
 import { genericOAuth } from "better-auth/plugins/generic-oauth"
 
 const appOrigin = "http://localhost:3000"
@@ -51,7 +51,7 @@ function createApp(options: { allowDifferentEmails?: boolean; method?: "client_s
   logger: { disabled: true },
   emailAndPassword: { enabled: true },
   account: { encryptOAuthTokens: true, accountLinking: { enabled: true, allowDifferentEmails: options.allowDifferentEmails } },
-  plugins: [options.stock ? genericOAuth({ config: [ofauthProvider(provider)] }) : ofauth(provider)],
+  plugins: options.stock ? [genericOAuth({ config: [ofauthProvider(provider)] }), ofauthAccountProtection()] : [ofauth(provider)],
  })
 }
 type App = ReturnType<typeof createApp>
@@ -213,6 +213,7 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
    const callback = new URL(consent.headers.get("location")!)
    expect((await first.request(callback.pathname.replace("/api/auth", "") + callback.search, flowCookie)).headers.get("location")).toBe("/done")
    const account = (await (await first.request("/list-accounts", cookie)).json()).find((account: { providerId: string }) => account.providerId === "ofauth")
+   const savedCredential = (await pool.query('SELECT "refreshToken" FROM account WHERE id = $1', [account.id])).rows[0].refreshToken
    await expire(account.id)
    let release!: () => void; const waiting = new Promise<void>(resolve => { release = resolve })
    let arrivals = 0
@@ -227,6 +228,7 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
    expect(arrivals).toBe(2)
    for (const result of results) { expect(result.status).toBe(200); expect((await resource(result.body.accessToken)).status).toBe(200) }
    expect(results[0].body.accessToken === results[1].body.accessToken).toBe(false)
+   expect((await pool.query('SELECT "refreshToken" FROM account WHERE id = $1', [account.id])).rows[0].refreshToken).toBe(savedCredential)
    await expire(account.id); loseResponse = true
    expect((await get(first)).status).toBe(400)
    await first.stop()
@@ -257,8 +259,9 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
   const tables = await pool.query("SELECT tablename FROM pg_tables WHERE schemaname = $1", [schema])
   expect(tables.rows.map(row => row.tablename)).not.toContain("ofauth_refresh_attempts")
  })
- it("keeps a replacement registration when an old refresh completes after relinking", async () => {
-  subject = "relink-owner"; profileEmail = "relink@example.com"
+ it("keeps a replacement registration after relinking during each native token route", async () => {
+  for (const path of ["/get-access-token", "/refresh-token", "/account-info"]) {
+  subject = `relink-owner-${path.slice(1)}`; profileEmail = `${subject}@example.com`
   const auth = createApp({ allowDifferentEmails: true }); const app = await signup(auth)
   await complete(auth, await authorize(auth, app.cookie)); const account = await linked(auth, app.cookie)
   const original = accessTokens.get((await token(auth, app.cookie, account.id)).body.accessToken)!
@@ -266,7 +269,10 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
   let started!: () => void; const startedPromise = new Promise<void>(resolve => { started = resolve })
   let release!: () => void; const waiting = new Promise<void>(resolve => { release = resolve })
   duringRefresh = async () => { started(); await waiting }
-  const pending = token(auth, app.cookie, account.id)
+  const pending = auth.handler(new Request(`${appOrigin}/api/auth${path}${path === "/account-info" ? `?accountId=${account.id}` : ""}`, {
+   method: path === "/account-info" ? "GET" : "POST", headers: headers(app.cookie),
+   ...(path === "/account-info" ? {} : { body: JSON.stringify({ accountId: account.id }) }),
+  }))
   await startedPromise
   try {
    expect((await complete(auth, await authorize(auth, app.cookie))).headers.get("location")).toBe("/done")
@@ -276,5 +282,6 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
   await expire(account.id)
   // Only the fresh registration can renew after the original credential is revoked.
   expect((await token(createApp(), app.cookie, account.id)).status).toBe(200)
+  }
  })
 })
