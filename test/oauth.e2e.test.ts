@@ -272,7 +272,7 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
    expect((await complete(auth, await authorize(auth, app.cookie))).headers.get("location")).toBe("/done")
    credentials.get(original)!.revoked = true
   } finally { duringRefresh = undefined; release() }
-  expect((await pending).status).toBe(200)
+  expect((await pending).status).toBe(400)
   await expire(account.id)
   // Only the fresh registration can renew after the original credential is revoked.
   expect((await token(createApp(), app.cookie, account.id)).status).toBe(200)

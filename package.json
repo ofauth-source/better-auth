@@ -16,7 +16,8 @@
 	},
 	"files": [
 		"dist",
-		"README.md"
+		"README.md",
+		"ACCOUNT-UPDATES.md"
 	],
 	"publishConfig": {
 		"access": "public"
@@ -28,9 +29,11 @@
 		"prepack": "pnpm build"
 	},
 	"peerDependencies": {
+		"@better-auth/core": "^1.7.3",
 		"better-auth": "^1.7.3"
 	},
 	"devDependencies": {
+		"@better-auth/core": "1.7.3",
 		"@types/node": "^24.5.2",
 		"better-auth": "1.7.3",
 		"tsup": "^8.5.0",
