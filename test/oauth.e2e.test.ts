@@ -7,12 +7,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { betterAuth } from "better-auth"
 import { getMigrations } from "better-auth/db/migration"
 import { Pool } from "pg"
-import { ofauth, ofauthAccountProtection, ofauthProvider } from "../src/index"
+import { OFAUTH_OPERATOR_SCOPES, ofauth, ofauthAccountProtection, ofauthOperatorLinking, ofauthOperatorProvider, ofauthOperatorRegistration, ofauthProvider, type OFAuthOperatorCredentials, type OFAuthOperatorScope } from "../src/index"
 import { genericOAuth } from "better-auth/plugins/generic-oauth"
 
 const appOrigin = "http://localhost:3000"
 const clientId = `ofext_test_${"t".repeat(32)}`
 const clientSecret = "fixture-only-client-secret"
+const operatorClientId = `oa_${crypto.randomUUID()}`
+const operatorClientSecret = "fixture-only-operator-client-secret-0123456789"
 const schema = `ofauth_adapter_${Date.now()}_${process.pid}`
 let issuer: string
 let server: Server
@@ -24,8 +26,16 @@ let profileEmailVerified = true
 let refreshes = 0
 let loseResponse = false
 let duringRefresh: (() => Promise<void>) | undefined
-const codes = new Map<string, { challenge: string; redirectURI: string; subject: string }>()
-const credentials = new Map<string, { subject: string; revoked: boolean }>()
+const codes = new Map<string, { challenge: string; redirectURI: string; subject: string; scope: string }>()
+const credentials = new Map<string, { subject: string; revoked: boolean; scope: string }>()
+// Developer clients may request any scope; Operator private apps only Operator Access scopes.
+const clients = new Map<string, { secret: string; operator: boolean; redirectURI?: string }>([
+ [clientId, { secret: clientSecret, operator: false }],
+ [operatorClientId, { secret: operatorClientSecret, operator: true }],
+])
+const operatorScopes: readonly string[] = OFAUTH_OPERATOR_SCOPES
+let userinfoRequests = 0
+let registrations = 0
 const accessTokens = new Map<string, string>()
 const authMethods = new Set<string>()
 const children = new Set<ChildProcess>()
@@ -55,6 +65,20 @@ function createApp(options: { allowDifferentEmails?: boolean; method?: "client_s
  })
 }
 type App = ReturnType<typeof createApp>
+// Default account-linking policy on purpose: no blanket trustedProviders and no allowDifferentEmails.
+function createOperatorApp(options: { scopes?: OFAuthOperatorScope[]; stock?: boolean; linking?: boolean; credentials?: { clientId: string; clientSecret: string } } = {}) {
+ const provider = { clientId: options.credentials?.clientId ?? operatorClientId, clientSecret: options.credentials?.clientSecret ?? operatorClientSecret, apiURL: issuer, authURL: issuer, scopes: options.scopes }
+ return betterAuth({ database: pool, baseURL: appOrigin,
+  secret: "fixture-only-better-auth-secret-at-least-32-characters",
+  logger: { disabled: true },
+  emailAndPassword: { enabled: true },
+  account: { encryptOAuthTokens: true, accountLinking: { enabled: options.linking ?? true } },
+  plugins: options.stock
+   ? [genericOAuth({ config: [ofauthOperatorProvider(provider)] }), ofauthAccountProtection(), ofauthOperatorLinking()]
+   : [ofauth({ mode: "operator", ...provider })],
+ }) as unknown as App
+}
+async function userCount() { return Number((await pool.query("SELECT count(*) FROM \"user\"")).rows[0].count) }
 function cookies(response: Response) { return response.headers.getSetCookie().map(value => value.split(";", 1)[0]).join("; ") }
 function headers(cookie: string) { return new Headers({ cookie, origin: appOrigin, "content-type": "application/json" }) }
 async function signup(auth: App) {
@@ -95,11 +119,18 @@ beforeAll(async () => {
   const json = (body: unknown, status = 200) => { response.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" }); response.end(JSON.stringify(body)) }
   if (url.pathname === "/v3/authorize") {
    if (url.searchParams.get("code_challenge_method") !== "S256" || url.searchParams.has("client_secret") || url.searchParams.get("response_type") !== "code") return json({ error: "invalid_request" }, 400)
-   const code = crypto.randomUUID()
+   const client = clients.get(url.searchParams.get("client_id") ?? "")
    const redirectURI = url.searchParams.get("redirect_uri")!
-   codes.set(code, { challenge: url.searchParams.get("code_challenge")!, redirectURI, subject })
+   if (!client || (client.redirectURI && client.redirectURI !== redirectURI)) return json({ error: "invalid_request" }, 400)
+   const scope = url.searchParams.get("scope") ?? ""
    const callback = new URL(redirectURI)
-   callback.searchParams.set("code", code); callback.searchParams.set("state", url.searchParams.get("state")!)
+   callback.searchParams.set("state", url.searchParams.get("state")!)
+   if (client.operator && !scope.split(" ").every(value => operatorScopes.includes(value))) {
+    callback.searchParams.set("error", "invalid_scope"); response.writeHead(302, { location: callback.href }); response.end(); return
+   }
+   const code = crypto.randomUUID()
+   codes.set(code, { challenge: url.searchParams.get("code_challenge")!, redirectURI, subject, scope })
+   callback.searchParams.set("code", code)
    callback.searchParams.set("iss", `${issuer}/v3/link`)
    response.writeHead(302, { location: callback.href }); response.end(); return
   }
@@ -107,8 +138,9 @@ beforeAll(async () => {
    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk))
    const form = new URLSearchParams(Buffer.concat(chunks).toString())
    if (!request.headers["content-type"]?.startsWith("application/x-www-form-urlencoded")) return json({ error: "invalid_request" }, 400)
-   const basic = request.headers.authorization === `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`
-   const post = !request.headers.authorization && form.get("client_id") === clientId && form.get("client_secret") === clientSecret
+   const [basicId, basicSecret] = Buffer.from(request.headers.authorization?.startsWith("Basic ") ? request.headers.authorization.slice(6) : "", "base64").toString().split(":")
+   const basic = !!basicId && clients.get(basicId)?.secret === basicSecret
+   const post = !request.headers.authorization && clients.get(form.get("client_id") ?? "")?.secret === form.get("client_secret")
    if ((!basic && !post) || (basic && form.has("client_secret"))) return json({ error: "invalid_client" }, 401)
    authMethods.add(basic ? "client_secret_basic" : "client_secret_post")
    if (url.pathname.endsWith("/revoke")) { const credential = credentials.get(form.get("token")!); if (credential) credential.revoked = true; return json({}) }
@@ -123,14 +155,28 @@ beforeAll(async () => {
     const pending = codes.get(code)
     if (!pending || pending.redirectURI !== form.get("redirect_uri") || createHash("sha256").update(form.get("code_verifier") ?? "").digest("base64url") !== pending.challenge) return json({ error: "invalid_grant" }, 400)
     codes.delete(code)
-    refreshToken = crypto.randomUUID(); credentials.set(refreshToken, { subject: pending.subject, revoked: false })
+    refreshToken = crypto.randomUUID(); credentials.set(refreshToken, { subject: pending.subject, revoked: false, scope: pending.scope })
    }
    const accessToken = crypto.randomUUID(); accessTokens.set(accessToken, refreshToken)
    if (loseResponse && form.get("grant_type") === "refresh_token") { loseResponse = false; request.socket.destroy(); return }
-   return json({ access_token: accessToken, refresh_token: refreshToken, expires_in: 900, token_type: "Bearer", scope: "identity:read profile:read" })
+   return json({ access_token: accessToken, refresh_token: refreshToken, expires_in: 900, token_type: "Bearer", scope: credentials.get(refreshToken)!.scope })
+  }
+  if (url.pathname === "/.well-known/oauth-authorization-server/v3/link") return json({ issuer: `${issuer}/v3/link`, registration_endpoint: `${issuer}/v3/link/register` })
+  if (url.pathname === "/v3/link/register" && request.method === "POST") {
+   const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk))
+   const body = JSON.parse(Buffer.concat(chunks).toString())
+   const scopes = String(body.scope).split(" ")
+   if (!scopes.every(scope => operatorScopes.includes(scope)) || body.redirect_uris?.length !== 1) return json({ error: "invalid_client_metadata" }, 400)
+   registrations++
+   const registered = { client_id: `oa_${crypto.randomUUID()}`, client_secret: `fixture-only-${crypto.randomUUID()}`, client_id_issued_at: Math.floor(Date.now() / 1000) }
+   clients.set(registered.client_id, { secret: registered.client_secret, operator: true, redirectURI: body.redirect_uris[0] })
+   return json({ ...registered, client_secret_expires_at: 0, redirect_uris: body.redirect_uris, token_endpoint_auth_method: body.token_endpoint_auth_method, scope: scopes.join(" ") }, 201)
   }
   const credential = credentials.get(accessTokens.get(request.headers.authorization?.slice(7) ?? "") ?? "")
   if (!credential || credential.revoked) return json({ error: "invalid_token" }, 401)
+  if (url.pathname === "/v3/link/userinfo") userinfoRequests++
+  if (url.pathname === "/v3/link/userinfo" && !credential.scope.split(" ").includes("identity:read")) return json({ error: "insufficient_scope" }, 403)
+  if (url.pathname === "/v3/authorization") return json({ id: `authz-${credential.subject}`, scope: credential.scope, linked_accounts: { data: [{ id: `${credential.subject}-account` }], has_more: false } })
   if (url.pathname === "/v3/link/userinfo") return json({ id: credential.subject, sub: credential.subject, name: "Owner", ...(profileEmail ? { email: profileEmail } : {}), email_verified: profileEmailVerified, picture: null })
   if (url.pathname === "/v3/linked-accounts") return json({ data: [{ id: `${credential.subject}-account` }], has_more: false })
   if (url.pathname === "/v3/access/profile") {
@@ -283,5 +329,114 @@ describe("standard Better Auth with simulated OFAuth issuer", () => {
   // Only the fresh registration can renew after the original credential is revoked.
   expect((await token(createApp(), app.cookie, account.id)).status).toBe(200)
   }
+ })
+})
+
+describe("Operator private apps with simulated OFAuth issuer", () => {
+ it("validates Operator scopes before any request", () => {
+  const base = { mode: "operator" as const, clientId: operatorClientId, clientSecret: operatorClientSecret }
+  expect(() => ofauth({ ...base, scopes: ["identity:read" as OFAuthOperatorScope] })).toThrow(/Operator apps only support/)
+  expect(ofauthOperatorProvider(base).scopes).toEqual(["access:read"])
+  expect(ofauthOperatorProvider({ ...base, scopes: ["access:write", "access:read"] }).scopes).toEqual(["access:read", "access:write"])
+  expect(ofauthOperatorProvider(base).disableSignUp).toBe(true)
+ })
+ it("shows why the developer preset cannot complete for an Operator registration", async () => {
+  subject = "operator-developer-preset"
+  const auth = betterAuth({ database: pool, baseURL: appOrigin, secret: "fixture-only-better-auth-secret-at-least-32-characters", logger: { disabled: true }, emailAndPassword: { enabled: true },
+   account: { accountLinking: { enabled: true, allowDifferentEmails: true } },
+   plugins: [ofauth({ clientId: operatorClientId, clientSecret: operatorClientSecret, apiURL: issuer, authURL: issuer })] }) as unknown as App
+  const app = await signup(auth)
+  const flow = await authorize(auth, app.cookie)
+  expect(new URL(flow.authorizationURL).searchParams.get("scope")).toBe("identity:read")
+  expect(new URL(flow.callback).searchParams.get("error")).toBe("invalid_scope")
+ })
+ for (const stock of [false, true]) {
+  it(`links from a signed-in session without email or userinfo (${stock ? "genericOAuth + plugins" : "ofauth preset"})`, async () => {
+   subject = `operator-owner-${stock}`
+   const auth = createOperatorApp({ scopes: ["connections:manage"], stock })
+   const app = await signup(auth)
+   const before = userinfoRequests
+   const flow = await authorize(auth, app.cookie)
+   expect(new URL(flow.authorizationURL).searchParams.get("scope")).toBe("access:read connections:manage")
+   expect((await complete(auth, flow)).headers.get("location")).toBe("/done")
+   expect(userinfoRequests).toBe(before)
+   const account = await linked(auth, app.cookie)
+   expect(account.accountId).toBe(`authz-${subject}`)
+   expect((await auth.api.getSession({ headers: headers(app.cookie) }))?.user).toMatchObject({ id: app.user.id, email: app.user.email, name: "Application user", emailVerified: false })
+   const result = await token(auth, app.cookie, account.id)
+   expect(result.status).toBe(200)
+   expect(await (await resource(result.body.accessToken)).json()).toMatchObject({ data: [{ id: `${subject}-account` }] })
+   const stranger = await signup(auth)
+   expect((await token(auth, stranger.cookie, account.id)).status).toBe(400)
+   // The per-request trust never leaks into the shared Better Auth context.
+   expect((await auth.$context).trustedProviders).toEqual([])
+   expect((await auth.$context).options.account?.accountLinking?.allowDifferentEmails).toBeUndefined()
+  })
+ }
+ it("refuses sign-in and sign-up through OFAuth", async () => {
+  subject = "operator-signin"
+  const auth = createOperatorApp()
+  const app = await signup(auth)
+  await complete(auth, await authorize(auth, app.cookie))
+  const users = await userCount()
+  for (const requestSignUp of [false, true]) {
+   const started = await auth.handler(new Request(`${appOrigin}/api/auth/sign-in/social`, { method: "POST", headers: headers(""), body: JSON.stringify({ provider: "ofauth", callbackURL: "/done", requestSignUp }) }))
+   expect(started.status).toBe(200)
+   const consent = await fetch((await started.json()).url, { redirect: "manual" })
+   const callback = await auth.handler(new Request(consent.headers.get("location")!, { headers: headers(cookies(started)) }))
+   expect(callback.headers.get("location")).toContain("error=")
+   expect(callback.headers.getSetCookie().some(cookie => cookie.startsWith("better-auth.session_token="))).toBe(false)
+  }
+  expect(await userCount()).toBe(users)
+ })
+ it("respects disabled account linking", async () => {
+  subject = "operator-linking-disabled"
+  const auth = createOperatorApp({ linking: false })
+  const app = await signup(auth)
+  expect((await complete(auth, await authorize(auth, app.cookie))).headers.get("location")).toContain("error=")
+  expect(await linked(auth, app.cookie)).toBeUndefined()
+ })
+ it("keeps account protection: a stale refresh cannot overwrite a relinked authorization", async () => {
+  subject = "operator-relink"
+  const auth = createOperatorApp(); const app = await signup(auth)
+  await complete(auth, await authorize(auth, app.cookie)); const account = await linked(auth, app.cookie)
+  const original = accessTokens.get((await token(auth, app.cookie, account.id)).body.accessToken)!
+  await expire(account.id)
+  let started!: () => void; const startedPromise = new Promise<void>(resolve => { started = resolve })
+  let release!: () => void; const waiting = new Promise<void>(resolve => { release = resolve })
+  duringRefresh = async () => { started(); await waiting }
+  const pending = auth.handler(new Request(`${appOrigin}/api/auth/get-access-token`, { method: "POST", headers: headers(app.cookie), body: JSON.stringify({ accountId: account.id }) }))
+  await startedPromise
+  try {
+   expect((await complete(auth, await authorize(auth, app.cookie))).headers.get("location")).toBe("/done")
+   credentials.get(original)!.revoked = true
+  } finally { duringRefresh = undefined; release() }
+  expect((await pending).status).toBe(400)
+  await expire(account.id)
+  expect((await token(createOperatorApp(), app.cookie, account.id)).status).toBe(200)
+ })
+ it("self-registers once through caller-supplied storage and links with the registered client", async () => {
+  let stored: OFAuthOperatorCredentials | undefined
+  let saves = 0
+  const options = {
+   clientName: "Fixture CRM", redirectURI: `${appOrigin}/api/auth/callback/ofauth`, apiURL: issuer, scopes: ["access:write"] as OFAuthOperatorScope[],
+   load: async () => stored,
+   save: async (credentials: OFAuthOperatorCredentials) => { saves++; stored ??= credentials; return stored },
+  }
+  const before = registrations
+  const credentials = await ofauthOperatorRegistration(options)
+  expect(registrations).toBe(before + 1)
+  expect(credentials).toMatchObject({ clientId: expect.stringMatching(/^oa_/), issuedAt: expect.any(Date) })
+  expect(await ofauthOperatorRegistration(options)).toBe(credentials)
+  expect(registrations).toBe(before + 1); expect(saves).toBe(1)
+  await expect(ofauthOperatorRegistration({ ...options, load: async () => null, scopes: ["identity:read" as OFAuthOperatorScope] })).rejects.toThrow(/Operator apps only support/)
+  await expect(ofauthOperatorRegistration({ ...options, load: async () => null, redirectURI: "http://app.example/api/auth/callback/ofauth" })).rejects.toThrow(/HTTPS/)
+  await expect(ofauthOperatorRegistration({ ...options, load: async () => null, apiURL: appOrigin })).rejects.toThrow()
+  expect(registrations).toBe(before + 1)
+
+  subject = "operator-registered"
+  const auth = createOperatorApp({ credentials, scopes: ["access:write"] }); const app = await signup(auth)
+  expect((await complete(auth, await authorize(auth, app.cookie))).headers.get("location")).toBe("/done")
+  expect((await linked(auth, app.cookie)).accountId).toBe(`authz-${subject}`)
  })
 })

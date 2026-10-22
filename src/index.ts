@@ -1,10 +1,15 @@
 import { genericOAuth, type GenericOAuthConfig } from "better-auth/plugins/generic-oauth"
 import { origin } from "./origin"
 import { ofauthAccountProtection } from "./account-updates"
+import { ofauthOperatorLinking, ofauthOperatorProvider, type OFAuthOperatorOptions } from "./operator"
 
 export { ofauthAccountProtection } from "./account-updates"
+export { OFAUTH_OPERATOR_SCOPES, ofauthOperatorLinking, ofauthOperatorProvider, type OFAuthOperatorOptions, type OFAuthOperatorScope } from "./operator"
+export { ofauthOperatorRegistration, type OFAuthOperatorCredentials, type OFAuthOperatorRegistrationOptions } from "./registration"
 
 export type OFAuthOptions = {
+	/** Developer apps (the default) sign in with an OFAuth identity. */
+	mode?: "developer"
 	clientId: string
 	clientSecret: string
 	/** Additional account permissions. Identity is always requested. */
@@ -38,8 +43,18 @@ export function ofauthProvider(options: OFAuthOptions): GenericOAuthConfig<"ofau
 	}
 }
 
-/** Better Auth owns callback validation, token storage, and refresh. */
-export const ofauth = (options: OFAuthOptions) => ({
-	...genericOAuth({ config: [ofauthProvider(options)] }),
-	hooks: ofauthAccountProtection().hooks,
-})
+/**
+ * Better Auth owns callback validation, token storage, and refresh.
+ * `mode: "operator"` configures an Operator private app: Operator scopes only,
+ * identity from the authorization, and linking from a signed-in session only.
+ */
+export const ofauth = (options: OFAuthOptions | (OFAuthOperatorOptions & { mode: "operator" })) => {
+	if (options.mode === "operator") return {
+		...genericOAuth({ config: [ofauthOperatorProvider(options)] }),
+		hooks: { before: [...ofauthAccountProtection().hooks!.before!, ...ofauthOperatorLinking().hooks!.before!] },
+	}
+	return {
+		...genericOAuth({ config: [ofauthProvider(options)] }),
+		hooks: ofauthAccountProtection().hooks,
+	}
+}
