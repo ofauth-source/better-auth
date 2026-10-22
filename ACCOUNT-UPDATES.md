@@ -1,6 +1,6 @@
 # Protect a saved connection
 
-The `ofauth()` preset includes `ofauthAccountProtection()`. When you configure Generic OAuth directly with `ofauthProvider()` or explicit endpoints, add the protection plugin to your Better Auth plugins:
+The `ofauth()` preset includes `ofauthAccountProtection()` in both developer and Operator mode. When you configure Generic OAuth directly with `ofauthProvider()`, `ofauthOperatorProvider()`, or explicit endpoints, add the protection plugin to your Better Auth plugins:
 
 ```ts
 import { genericOAuth } from "better-auth/plugins/generic-oauth"
