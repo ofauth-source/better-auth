@@ -1,0 +1,423 @@
+{
+  "framework": "better-auth@1.7.3",
+  "issuer": "actual mounted createCoreApiApp",
+  "environment": "isolated workerd/PostgreSQL",
+  "simulationLimits": [
+    "synthetic provider connection; no real provider login or operation delivery",
+    "independent Better Auth instances, process-isolation verified separately by package E2E"
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/openapi.json",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/.well-known/oauth-authorization-server/v3/link",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/linked-accounts",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/linked-accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/linked-accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 403
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/linked-accounts",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/revoke",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 400
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/revoke",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "DELETE",
+      "url": "https://api.ofauth.com/v3/authorization",
+      "status": 204
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 400
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/v3/authorize",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 401
+    },
+    {
+      "method": "GET",
+      "url": "https://link.ofauth.com/oauth/consent/presentation",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://link.ofauth.com/oauth/consent/decision",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://api.ofauth.com/v3/link/token",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.ofauth.com/v3/link/userinfo",
+      "status": 401
+    }
+  ],
+  "tokenResponses": 12,
+  "sourceRevision": "1f5b12f499a523a1e38f2eb776ea592bd92593ef",
+  "sourceState": "working tree implementation before monorepo integration commit",
+  "postgresTestDatabase": "ofauth_test_1274_final",
+  "database": "full current journal migrations including authority triggers and removed obsolete bundle tables",
+  "passed": 5,
+  "failed": 0,
+  "skipped": 0,
+  "testSourceSHA256": "c211bef400b203b11cbf39ca54e3d9b3fe9b60b163edb6b2d1828b29c5b07c11",
+  "command": "POSTGRES_TEST_URL=<owned loopback final database URL> pnpm --dir v3/user-facing/api/core-api exec vitest run test/integration/better-auth-link.test.ts --reporter=default --reporter=json --outputFile=.local/1274/better-auth-core-final.e2e.json",
+  "scenarios": [
+    {
+      "name": "signs in with zero creator grants through Link and refreshes a real token",
+      "status": "passed"
+    },
+    {
+      "name": "links an existing app user, changes shared creators without changing login, and prevents account stealing",
+      "status": "passed"
+    },
+    {
+      "name": "narrows only the new access token and revokes one stable renewable credential",
+      "status": "passed"
+    },
+    {
+      "name": "revokes one credential independently, then disconnects its authorization",
+      "status": "passed"
+    },
+    {
+      "name": "signs in and refreshes under an approved Live purpose without granting a creator account",
+      "status": "passed"
+    }
+  ]
+}
