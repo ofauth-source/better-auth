@@ -4,6 +4,8 @@ A small configuration preset for Better Auth's [Generic OAuth plugin](https://be
 
 The preset protects native token persistence when a connection changes during refresh. Packed consumers pass the registration-change checks on Better Auth 1.7.3 and 1.7.12. Local fixture tests do not certify the OFAuth issuer or staging provider callbacks. See `test/RESULTS.md` for the separate evidence and release limits.
 
+There are two kinds of OFAuth client. **Developer apps** onboard other people's accounts and sign users in with an OFAuth identity (`identity:read`). **Operator private apps** act on your own Operator workspace. They register themselves and can only use Operator Access scopes. Use `ofauth({ mode: "operator", ... })` for those; see [Operator private apps](#operator-private-apps).
+
 ## Configure signed-in account linking
 
 Register your exact callback, such as `https://your-app.example/api/auth/callback/ofauth`, in OFAuth. Match Better Auth's `baseURL`, `basePath`, and trusted origins. Each Sandbox, Test, or Live client uses the same OAuth shape; its client ID selects the environment.
@@ -41,7 +43,7 @@ export const auth = betterAuth({
 
 `allowDifferentEmails: true` is a deliberate policy for linking from an existing signed-in session. Omit it if the OFAuth profile must match the application's email. Preserve your other authentication and account-linking policies. Do not mark OFAuth as a blanket trusted provider. Better Auth also checks provider email verification; the harness verifies rejection of an unverified or absent email. OFAuth must never invent an email or verified status. Guest API delegation remains available through raw OAuth without a profile-based adapter.
 
-The equivalent preset is `plugins: [ofauth({ clientId, clientSecret, scopes: ["profile:read"] })]`, imported from `@ofauth/better-auth`. `ofauthProvider(options)` returns the same standard configuration for an existing Generic OAuth plugin; add `ofauthAccountProtection()` alongside that plugin. The preset already includes the protection. It keeps Better Auth as the credential owner and makes native token updates conditional on the saved connection. See [Protect a saved connection](./ACCOUNT-UPDATES.md). Options include `apiURL`, `authURL`, `disableSignUp`, and `tokenEndpointAuthMethod: "client_secret_basic" | "client_secret_post"`. The preset always requests `identity:read` and PKCE. Explicit endpoints are the supported configuration; OIDC and discovery are not claimed.
+The equivalent preset is `plugins: [ofauth({ clientId, clientSecret, scopes: ["profile:read"] })]`, imported from `@ofauth/better-auth`. `ofauthProvider(options)` returns the same standard configuration for an existing Generic OAuth plugin; add `ofauthAccountProtection()` alongside that plugin. The preset already includes the protection. It keeps Better Auth as the credential owner and makes native token updates conditional on the saved connection. See [Protect a saved connection](./ACCOUNT-UPDATES.md). Options include `apiURL`, `authURL`, `disableSignUp`, and `tokenEndpointAuthMethod: "client_secret_basic" | "client_secret_post"`. The developer preset always requests `identity:read` and PKCE. Explicit endpoints are the supported configuration; OIDC and discovery are not claimed.
 
 From the application's signed-in browser session:
 
@@ -53,6 +55,62 @@ await authClient.linkSocial({
 ```
 
 Better Auth binds state to that initiating session and persists the tokens on callback. OFAuth's stable profile `id`/`sub`, the Better Auth account row ID, and a linked provider account ID have separate purposes. Linking retains the existing application user's identity.
+
+## Operator private apps
+
+An Operator private app registers itself with RFC 7591 and may only request `access:read`, `access:write`, `access:destructive`, and `connections:manage`. It cannot request `identity:read`, so `/v3/link/userinfo` is unavailable and its tokens carry no email. The developer preset cannot complete for it. Use Operator mode:
+
+```ts
+import { betterAuth } from "better-auth"
+import { ofauth, ofauthOperatorRegistration } from "@ofauth/better-auth"
+
+const scopes = ["access:read", "connections:manage"] as const
+
+// Optional: register this installation on first start and keep the credentials in your own storage.
+const { clientId, clientSecret } = await ofauthOperatorRegistration({
+  clientName: "My CRM",
+  redirectURI: `${process.env.APP_ORIGIN}/api/auth/callback/ofauth`,
+  scopes: [...scopes],
+  load: () => loadOFAuthCredentials(), // Return null to register.
+  save: credentials => saveOFAuthCredentials(credentials), // Return the stored winner after a concurrent start.
+})
+
+export const auth = betterAuth({
+  database,
+  baseURL: process.env.APP_ORIGIN!,
+  account: { encryptOAuthTokens: true, accountLinking: { enabled: true } },
+  plugins: [ofauth({ mode: "operator", clientId, clientSecret, scopes: [...scopes] })],
+})
+```
+
+Then link from the signed-in session with `authClient.linkSocial({ provider: "ofauth", callbackURL: "/settings/accounts" })`, exactly as above.
+
+Operator mode:
+
+- Requests only Operator scopes. `access:read` is always included; any other value, including `identity:read`, throws at configuration time. Register every scope you later request.
+- Never calls userinfo. After the code exchange it calls `GET /v3/authorization` and uses that authorization `id` as the Better Auth `accountId`. It returns no name, email, or image and never claims a verified email.
+- Links only from an existing session. Sign-up is disabled, and sign-in through OFAuth fails because no email is returned.
+- Includes `ofauthAccountProtection()`, so token persistence is protected exactly as in developer mode.
+
+Better Auth refuses to link a provider unless it reports a verified email or is listed in `accountLinking.trustedProviders`, and compares emails unless `allowDifferentEmails` is set. An Operator authorization has no email to verify or compare. Do not add a blanket `trustedProviders: ["ofauth"]`. Operator mode includes `ofauthOperatorLinking()`, which applies to the OFAuth callback request only. For that request it marks `ofauth` trusted and accepts the absent email. The application's configuration and every other request are unchanged. This is safe because:
+
+- The verified-email rule protects implicit linking, where a provider email decides which local user receives an account. Here the callback state is bound to the signed-in session that started `linkSocial`, and Better Auth rejects a callback completed in another session. The account is attached only to that user.
+- The non-linking callback path still requires an email before it can find or create a user. Operator mode never returns one, and also disables sign-up.
+- `accountLinking.enabled: false`, `user.validateUserInfo`, and the existing "already linked to a different user" check still apply.
+
+When configuring Generic OAuth yourself, add both plugins:
+
+```ts
+plugins: [
+  genericOAuth({ config: [ofauthOperatorProvider({ clientId, clientSecret, scopes })] }),
+  ofauthAccountProtection(),
+  ofauthOperatorLinking(),
+]
+```
+
+`ofauthOperatorRegistration()` reads `/.well-known/oauth-authorization-server/v3/link`, checks the issuer and registration endpoint, registers one exact callback with confidential `client_secret_basic` (or `tokenEndpointAuthMethod: "client_secret_post"`), and validates the response before calling `save`. It returns stored credentials without contacting OFAuth when `load` returns them. Registration grants nothing until a workspace member approves it. An unused registration expires after 24 hours: record `issuedAt`, mark the registration as used when the first OFAuth account is created (for example in `databaseHooks.account.create.after`), and return null from `load` for an unused one older than 24 hours. Keep the client secret private and never ship it in a public client.
+
+Operator private apps do not include Realtime, Vault+, events, or webhooks. See the [Operator private apps guide](https://docs.ofauth.com/v3/guides/operator-apps).
 
 ## Obtain a token and choose a provider account
 
@@ -112,5 +170,7 @@ pnpm pack
 ```
 
 The harness runs real Better Auth and PostgreSQL against a simulated OAuth issuer. It exercises both standard secret methods, signed-in linking policy, protected persistence, session/state isolation, simultaneous refresh, lost-response and storage-failure recovery, explicit account selection, and revocation. It deliberately fails if a stale refresh overwrites a new registration. `test-results/oauth.e2e.json` is the repeatable redacted result artifact. It omits OAuth secrets from assertions and disables framework logging.
+
+Operator scenarios use a simulated Operator client that rejects non-Operator scopes and serves `GET /v3/authorization`, RFC 8414 metadata, and RFC 7591 registration. They cover requested scopes, linking without email or userinfo under the default linking policy, refused sign-in and sign-up, disabled linking, account protection after relinking, and self-registration. They pass from source on Better Auth 1.7.3 and 1.7.12; packed-consumer evidence for Operator mode is not yet recorded in `test/RESULTS.md`.
 
 Tested versions: Better Auth 1.7.3 and 1.7.12, each with the matching `@better-auth/core` version. Fresh consumers of the packed archive pass all seven scenarios on both versions. Two independent Node processes use the installed protection plugin. The registration-change scenario exercises all three native token routes. Actual mounted OFAuth route evidence is recorded separately in `test/RESULTS.md`; those runs use synthetic provider connections. Staging HTTPS callbacks, real provider login, delivery, and public package installation remain release checks. No package was published.
