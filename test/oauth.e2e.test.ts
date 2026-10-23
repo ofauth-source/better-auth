@@ -36,6 +36,7 @@ const clients = new Map<string, { secret: string; operator: boolean; redirectURI
 const operatorScopes: readonly string[] = OFAUTH_OPERATOR_SCOPES
 let userinfoRequests = 0
 let registrations = 0
+let ignoreReconnectReturn = false
 const accessTokens = new Map<string, string>()
 const authMethods = new Set<string>()
 const children = new Set<ChildProcess>()
@@ -170,7 +171,8 @@ beforeAll(async () => {
    registrations++
    const registered = { client_id: `oa_${crypto.randomUUID()}`, client_secret: `fixture-only-${crypto.randomUUID()}`, client_id_issued_at: Math.floor(Date.now() / 1000) }
    clients.set(registered.client_id, { secret: registered.client_secret, operator: true, redirectURI: body.redirect_uris[0] })
-   return json({ ...registered, client_secret_expires_at: 0, redirect_uris: body.redirect_uris, token_endpoint_auth_method: body.token_endpoint_auth_method, scope: scopes.join(" ") }, 201)
+   const reconnectReturn = !ignoreReconnectReturn && typeof body.ofauth_reconnect_return_uri === "string" ? { ofauth_reconnect_return_uri: body.ofauth_reconnect_return_uri } : {}
+   return json({ ...registered, client_secret_expires_at: 0, redirect_uris: body.redirect_uris, ...reconnectReturn, token_endpoint_auth_method: body.token_endpoint_auth_method, scope: scopes.join(" ") }, 201)
   }
   const credential = credentials.get(accessTokens.get(request.headers.authorization?.slice(7) ?? "") ?? "")
   if (!credential || credential.revoked) return json({ error: "invalid_token" }, 401)
@@ -432,11 +434,38 @@ describe("Operator private apps with simulated OFAuth issuer", () => {
   await expect(ofauthOperatorRegistration({ ...options, load: async () => null, scopes: ["identity:read" as OFAuthOperatorScope] })).rejects.toThrow(/Operator apps only support/)
   await expect(ofauthOperatorRegistration({ ...options, load: async () => null, redirectURI: "http://app.example/api/auth/callback/ofauth" })).rejects.toThrow(/HTTPS/)
   await expect(ofauthOperatorRegistration({ ...options, load: async () => null, apiURL: appOrigin })).rejects.toThrow()
+  await expect(ofauthOperatorRegistration({ ...options, load: async () => null, reconnectReturnURI: "http://app.example/accounts/reconnected" })).rejects.toThrow(/reconnect return URL must be an HTTPS/)
+  await expect(ofauthOperatorRegistration({ ...options, load: async () => null, reconnectReturnURI: `${appOrigin}/accounts/reconnected#done` })).rejects.toThrow(/HTTPS/)
   expect(registrations).toBe(before + 1)
 
   subject = "operator-registered"
   const auth = createOperatorApp({ credentials, scopes: ["access:write"] }); const app = await signup(auth)
   expect((await complete(auth, await authorize(auth, app.cookie))).headers.get("location")).toBe("/done")
   expect((await linked(auth, app.cookie)).accountId).toBe(`authz-${subject}`)
+ })
+ it("registers a separate reconnect return URL and refuses a server that ignores it", async () => {
+  let stored: OFAuthOperatorCredentials | undefined
+  let sent: unknown
+  const options = {
+   clientName: "Fixture CRM", redirectURI: `${appOrigin}/api/auth/callback/ofauth`, reconnectReturnURI: `${appOrigin}/accounts/reconnected`, apiURL: issuer,
+   load: async () => stored,
+   save: async (credentials: OFAuthOperatorCredentials) => { stored ??= credentials; return stored },
+  }
+  const nativeFetch = globalThis.fetch
+  globalThis.fetch = async (input, init) => { if (String(input).endsWith("/v3/link/register")) sent = JSON.parse(String(init?.body)); return nativeFetch(input, init) }
+  try {
+   const credentials = await ofauthOperatorRegistration(options)
+   expect(credentials.clientId).toMatch(/^oa_/)
+   expect(sent).toMatchObject({ redirect_uris: [options.redirectURI], ofauth_reconnect_return_uri: options.reconnectReturnURI })
+   const { reconnectReturnURI: _, ...withoutReconnect } = options
+   stored = undefined
+   await ofauthOperatorRegistration(withoutReconnect)
+   expect(sent).not.toHaveProperty("ofauth_reconnect_return_uri")
+   ignoreReconnectReturn = true
+   stored = undefined
+   let saved = false
+   await expect(ofauthOperatorRegistration({ ...options, save: async () => { saved = true } })).rejects.toThrow(/did not register the reconnect return URL/)
+   expect(saved).toBe(false)
+  } finally { globalThis.fetch = nativeFetch; ignoreReconnectReturn = false }
  })
 })
