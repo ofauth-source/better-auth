@@ -70,6 +70,7 @@ const scopes = ["access:read", "connections:manage"] as const
 const { clientId, clientSecret } = await ofauthOperatorRegistration({
   clientName: "My CRM",
   redirectURI: `${process.env.APP_ORIGIN}/api/auth/callback/ofauth`,
+  reconnectReturnURI: `${process.env.APP_ORIGIN}/accounts/reconnected`, // Optional: your own reconnect return route.
   scopes: [...scopes],
   load: () => loadOFAuthCredentials(), // Return null to register.
   save: credentials => saveOFAuthCredentials(credentials), // Return the stored winner after a concurrent start.
@@ -108,7 +109,7 @@ plugins: [
 ]
 ```
 
-`ofauthOperatorRegistration()` reads `/.well-known/oauth-authorization-server/v3/link`, checks the issuer and registration endpoint, registers one exact callback with confidential `client_secret_basic` (or `tokenEndpointAuthMethod: "client_secret_post"`), and validates the response before calling `save`. It returns stored credentials without contacting OFAuth when `load` returns them. Registration grants nothing until a workspace member approves it. An unused registration expires after 24 hours: record `issuedAt`, mark the registration as used when the first OFAuth account is created (for example in `databaseHooks.account.create.after`), and return null from `load` for an unused one older than 24 hours. Keep the client secret private and never ship it in a public client.
+`ofauthOperatorRegistration()` reads `/.well-known/oauth-authorization-server/v3/link`, checks the issuer and registration endpoint, registers one exact callback with confidential `client_secret_basic` (or `tokenEndpointAuthMethod: "client_secret_post"`), and validates the response before calling `save`. An optional `reconnectReturnURI` is registered as `ofauth_reconnect_return_uri`: OFAuth accepts it only as a reconnect `redirect_uri`, never as an OAuth redirect. Registration fails if OFAuth does not echo it. Credentials registered without it keep working; to add or change it, return nothing from `load` so the installation registers again. It returns stored credentials without contacting OFAuth when `load` returns them. Registration grants nothing until a workspace member approves it. An unused registration expires after 24 hours: record `issuedAt`, mark the registration as used when the first OFAuth account is created (for example in `databaseHooks.account.create.after`), and return null from `load` for an unused one older than 24 hours. Keep the client secret private and never ship it in a public client.
 
 Operator private apps do not include Realtime, Vault+, events, or webhooks. See the [Operator private apps guide](https://docs.ofauth.com/v3/guides/operator-apps).
 
@@ -154,6 +155,8 @@ Supply the same `getAccessToken` function to a resource SDK's token getter. The 
 ## Reconnect and disconnect
 
 A provider-session failure needs targeted reconnect for the affected linked account. Start `POST /v3/linked-accounts/{id}/reconnect`, validate the return, and re-read that account. Reconnect repairs provider connectivity; it does not renew OAuth or expand approval. Never automatically replay an interrupted write.
+
+Do not use the Better Auth callback as the reconnect `redirect_uri`: Better Auth would reject the return (`?state=…&reconnect=completed`) as an unknown OAuth state. Mount your own return route and register it. A Developer app adds it to its integration's redirect URIs in the dashboard. An Operator private app passes `reconnectReturnURI` to `ofauthOperatorRegistration()`.
 
 `invalid_token` means obtain a current token through Better Auth. A rejected refresh grant requires a new authorization journey while preserving the app session. Permission and account-selection errors require the corresponding grant or selection; quota and transient errors follow their retry rules. A timeout cannot prove a provider write failed.
 
