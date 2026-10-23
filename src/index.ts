@@ -3,6 +3,8 @@ import { origin } from "./origin"
 import { ofauthAccountProtection } from "./account-updates"
 import { ofauthOperatorLinking, ofauthOperatorProvider, type OFAuthOperatorOptions } from "./operator"
 
+
+
 export { ofauthAccountProtection } from "./account-updates"
 export { OFAUTH_OPERATOR_SCOPES, ofauthOperatorLinking, ofauthOperatorProvider, type OFAuthOperatorOptions, type OFAuthOperatorScope } from "./operator"
 export { ofauthOperatorRegistration, type OFAuthOperatorCredentials, type OFAuthOperatorRegistrationOptions } from "./registration"
