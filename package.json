@@ -1,57 +1,57 @@
 {
-	"name": "@ofauth/better-auth",
-	"version": "0.1.0",
-	"description": "OFAuth sign-in and creator account linking for Better Auth",
-	"author": {
-		"name": "OFAuth-org",
-		"url": "https://github.com/OFAuth-org"
-	},
-	"type": "module",
-	"sideEffects": false,
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		}
-	},
-	"files": [
-		"dist",
-		"README.md",
-		"ACCOUNT-UPDATES.md"
-	],
-	"publishConfig": {
-		"access": "public"
-	},
-	"scripts": {
-		"build": "tsup",
-		"check": "tsc --noEmit",
-		"test": "vitest run --reporter=default --reporter=json --outputFile=test-results/oauth.e2e.json",
-		"prepack": "pnpm build"
-	},
-	"peerDependencies": {
-		"@better-auth/core": "^1.7.3",
-		"better-auth": "^1.7.3"
-	},
-	"devDependencies": {
-		"@better-auth/core": "1.7.3",
-		"@types/node": "^24.5.2",
-		"better-auth": "1.7.3",
-		"tsup": "^8.5.0",
-		"typescript": "^5.9.3",
-		"vitest": "^4.1.0",
-		"pg": "^8.23.1",
-		"@types/pg": "^8.23.1"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/OFAuth-source/better-auth.git"
-	},
-	"homepage": "https://github.com/OFAuth-source/better-auth#readme",
-	"bugs": {
-		"url": "https://github.com/OFAuth-source/better-auth/issues"
-	},
-	"packageManager": "pnpm@11.5.0",
-	"engines": {
-		"node": ">=22"
-	}
+  "name": "@ofauth/better-auth",
+  "version": "0.1.0",
+  "description": "OFAuth sign-in and creator account linking for Better Auth",
+  "author": {
+    "name": "OFAuth-org",
+    "url": "https://github.com/OFAuth-org"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "ACCOUNT-UPDATES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "check": "tsc --noEmit",
+    "test": "vitest run --reporter=default --reporter=json --outputFile=test-results/oauth.e2e.json",
+    "prepack": "pnpm build"
+  },
+  "peerDependencies": {
+    "@better-auth/core": "^1.7.3",
+    "better-auth": "^1.7.3"
+  },
+  "devDependencies": {
+    "@better-auth/core": "1.7.3",
+    "@types/node": "^24.5.2",
+    "@types/pg": "^8.23.1",
+    "better-auth": "1.7.3",
+    "pg": "^8.23.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OFAuth-source/better-auth.git"
+  },
+  "homepage": "https://github.com/OFAuth-source/better-auth#readme",
+  "bugs": {
+    "url": "https://github.com/OFAuth-source/better-auth/issues"
+  },
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": ">=22"
+  }
 }
