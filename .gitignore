@@ -3,4 +3,5 @@ dist/
 test-results/
 *.tgz
 .DS_Store
-config.bat
+.env
+.env.*

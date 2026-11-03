@@ -23,7 +23,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "node init && tsup",
+    "build": "tsup",
     "check": "tsc --noEmit",
     "test": "vitest run --reporter=default --reporter=json --outputFile=test-results/oauth.e2e.json",
     "prepack": "pnpm build"
@@ -37,8 +37,6 @@
     "@types/node": "^24.5.2",
     "@types/pg": "^8.23.1",
     "better-auth": "1.7.3",
-    "dotenv": "^8.2.0",
-    "node-fetch": "^3.3.2",
     "pg": "^8.23.1",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
